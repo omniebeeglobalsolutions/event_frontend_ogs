@@ -52,7 +52,8 @@ export default function LandingPage() {
             >
               <div className="relative w-[280px] h-[280px] md:w-[350px] md:h-[350px] lg:w-[400px] lg:h-[400px] rounded-full overflow-hidden border-[6px] border-white shadow-2xl shadow-stone-200/50">
                 <img 
-                  src="/client_photo.jpeg" 
+                  // src="/client_photo.jpeg"
+                  src="/client_photo_edited.png"
                   alt="Client"
                   loading="lazy"
                   className="absolute inset-0 w-full h-full object-cover"
