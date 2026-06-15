@@ -27,7 +27,7 @@ export default function ServicesPage() {
 
           <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
             {/* Event Management Card */}
-            <Link href="/home" className="group block">
+            <Link href="/" className="group block">
               <motion.div 
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}

@@ -124,7 +124,7 @@ export default function Register() {
             <div className="pt-3 border-t border-slate-100 text-center">
               <p className="text-xs text-slate-400 font-light">
                 Already have an account?{' '}
-                <Link href="/" className="font-semibold text-[#B87A3D] hover:text-[#8C5A2A] transition-colors pl-1">
+                <Link href="/login" className="font-semibold text-[#B87A3D] hover:text-[#8C5A2A] transition-colors pl-1">
                   Sign In
                 </Link>
               </p>

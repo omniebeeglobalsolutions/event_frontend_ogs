@@ -15,14 +15,14 @@ export default function Navbar() {
         <div className="flex justify-between h-20 items-center">
           {/* Logo */}
           <div className="flex-shrink-0 flex items-center">
-            <Link href="/home" className="text-2xl font-medium tracking-tight text-[#0B132B]">
+            <Link href="/" className="text-2xl font-medium tracking-tight text-[#0B132B]">
               Lumina
             </Link>
           </div>
 
           {/* Centered Navigation */}
           <div className="hidden md:flex items-center space-x-8">
-            <Link href="/home" className="text-xs font-semibold text-slate-500 uppercase tracking-widest hover:text-[#0B132B] transition-colors">
+            <Link href="/" className="text-xs font-semibold text-slate-500 uppercase tracking-widest hover:text-[#0B132B] transition-colors">
               Home
             </Link>
             <Link href="/events" className="text-xs font-semibold text-slate-500 uppercase tracking-widest hover:text-[#0B132B] transition-colors">
@@ -55,7 +55,7 @@ export default function Navbar() {
                 </button>
               </div>
             ) : (
-              <Link href="/" className="text-sm font-semibold text-[#0B132B]">Sign In</Link>
+              <Link href="/login" className="text-sm font-semibold text-[#0B132B]">Sign In</Link>
             )}
 
             {/* Hamburger menu button */}
@@ -74,7 +74,7 @@ export default function Navbar() {
       {isOpen && (
         <div className="md:hidden bg-[#FAF9F6] border-t border-slate-200 px-4 pt-2 pb-4 space-y-2 shadow-inner">
           <Link
-            href="/home"
+            href="/"
             onClick={() => setIsOpen(false)}
             className="block px-3 py-2 rounded-md text-xs font-semibold text-slate-500 uppercase tracking-widest hover:bg-slate-100 hover:text-[#0B132B] transition-colors"
           >
