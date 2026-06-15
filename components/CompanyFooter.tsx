@@ -36,7 +36,7 @@ export default function CompanyFooter() {
           <div>
             <h3 className="text-white font-bold tracking-widest text-xs uppercase mb-4">Our Services</h3>
             <ul className="space-y-3 text-sm font-light">
-              <li><Link href="/home" className="hover:text-blue-400 transition-colors">Event Management</Link></li>
+              <li><Link href="/" className="hover:text-blue-400 transition-colors">Event Management</Link></li>
               <li><Link href="/gold" className="hover:text-blue-400 transition-colors">Gold Investment</Link></li>
             </ul>
           </div>

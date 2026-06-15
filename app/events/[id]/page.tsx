@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Calendar, MapPin, IndianRupee, Users, ArrowLeft, CheckCircle2, Star, Sparkles, ShieldAlert, Heart } from 'lucide-react';
+import { Calendar, MapPin, IndianRupee, Users, ArrowLeft, CheckCircle2, Star, Sparkles, ShieldAlert, Heart, Scissors, Ticket } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-toastify';
 import api from '../../../lib/api';
 import { useAuth } from '../../../context/AuthContext';
 import Link from 'next/link';
+import Script from 'next/script';
 
 // Dynamic Background Component for Event Details
 const ThemeBackground = ({ theme }: { theme: string }) => {
@@ -65,11 +66,19 @@ export default function EventDetails() {
   const [ticketCount, setTicketCount] = useState(1);
   const [isBooking, setIsBooking] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [bookedTicket, setBookedTicket] = useState<any>(null);
   const [showPayment, setShowPayment] = useState(false);
   const [showAgeModal, setShowAgeModal] = useState(false);
   
   const [hasBooked, setHasBooked] = useState(false);
   const [checkingBooking, setCheckingBooking] = useState(true);
+
+  const isTraditional = event && event.category && event.category.toLowerCase().trim() === 'traditional event';
+  const totalAmount = event
+    ? (isTraditional
+        ? event.ticketPrice + (ticketCount - 1) * 100
+        : event.ticketPrice * ticketCount)
+    : 0;
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -133,20 +142,70 @@ export default function EventDetails() {
     }
   };
 
-  const handleDummyPayment = async () => {
+  const handleRazorpayPayment = async () => {
     setIsBooking(true);
     try {
-      await api.post('/bookings', {
+      // 1. Create a pending booking order on the backend
+      const { data } = await api.post('/bookings', {
         eventId: event._id,
         ticketCount,
-        totalAmount: event.ticketPrice * ticketCount
+        totalAmount
       });
-      setBookingSuccess(true);
-      setShowPayment(false);
-      toast.success('Ticket booked successfully!');
+
+      const { booking, order } = data;
+
+      // 2. Configure Razorpay checkout options
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_dummykey',
+        amount: order.amount,
+        currency: order.currency,
+        name: "Lumina Events",
+        description: `Ticket Booking for ${event.title}`,
+        image: event.image || 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&q=80',
+        order_id: order.id,
+        handler: async function (response: any) {
+          setIsBooking(true);
+          try {
+            // Verify signature on backend
+            const verifyRes = await api.post('/bookings/verify', {
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_signature: response.razorpay_signature
+            });
+
+            if (verifyRes.data && verifyRes.data.booking) {
+              setBookedTicket(verifyRes.data.booking);
+              setBookingSuccess(true);
+              setShowPayment(false);
+              toast.success('Payment verified! Ticket booked successfully.');
+            }
+          } catch (verifyError: any) {
+            toast.error(verifyError.response?.data?.message || 'Payment verification failed');
+          } finally {
+            setIsBooking(false);
+          }
+        },
+        prefill: {
+          name: user?.name || '',
+          email: user?.email || '',
+          contact: ''
+        },
+        theme: {
+          color: event.theme === 'spiritual' ? "#B87A3D" : "#F43F5E"
+        },
+        modal: {
+          ondismiss: function () {
+            setIsBooking(false);
+            toast.info("Payment cancelled.");
+          }
+        }
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
+
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Booking failed');
-    } finally {
+      toast.error(error.response?.data?.message || 'Booking initiation failed');
       setIsBooking(false);
     }
   };
@@ -170,7 +229,7 @@ export default function EventDetails() {
       <div className="max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-1 pb-12 relative z-10">
 
         {/* Back Link - Balanced & beautiful */}
-        <Link href="/home" className="inline-flex items-center text-slate-500 hover:text-[#B87A3D] font-bold text-sm uppercase tracking-wider mb-5 transition-colors">
+        <Link href="/" className="inline-flex items-center text-slate-500 hover:text-[#B87A3D] font-bold text-sm uppercase tracking-wider mb-5 transition-colors">
           <ArrowLeft className="h-4.5 w-4.5 mr-2" />
           Back to Home
         </Link>
@@ -310,22 +369,31 @@ export default function EventDetails() {
                     <div>
                       <h4 className="font-bold text-[#0B132B] text-xs uppercase tracking-wider mb-3 pl-0.5">Payment Summary</h4>
                       <div className="flex justify-between text-sm text-slate-500 font-light mb-2">
-                        <span>{ticketCount}x Ticket</span>
-                        <span>₹{event.ticketPrice * ticketCount}</span>
+                        {isTraditional ? (
+                          <>
+                            <span>1x Main Ticket + {ticketCount - 1}x Guest(s)</span>
+                            <span>₹{totalAmount}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>{ticketCount}x Ticket</span>
+                            <span>₹{totalAmount}</span>
+                          </>
+                        )}
                       </div>
                       <div className="flex justify-between font-bold text-sm border-t border-slate-200/60 pt-2.5 mt-2.5 text-[#0B132B]">
                         <span>Total</span>
-                        <span>₹{event.ticketPrice * ticketCount}</span>
+                        <span>₹{totalAmount}</span>
                       </div>
                     </div>
 
                     <div className="space-y-2">
                       <button
-                        onClick={handleDummyPayment}
+                        onClick={handleRazorpayPayment}
                         disabled={isBooking}
                         className="w-full bg-[#0B132B] hover:bg-[#15234b] text-white py-3 rounded-xl font-bold text-xs uppercase tracking-widest transition-colors shadow-sm disabled:opacity-70 flex justify-center items-center"
                       >
-                        {isBooking ? 'Processing...' : 'Activate Payment'}
+                        {isBooking ? 'Processing...' : 'Pay with Razorpay'}
                       </button>
                       <button
                         onClick={() => setShowPayment(false)}
@@ -337,23 +405,72 @@ export default function EventDetails() {
                   </div>
                 ) : (
                   <div className="space-y-5">
-                    <div className="flex justify-between items-center bg-[#FAF9F6] p-3 rounded-xl border border-slate-100">
-                      <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white shrink-0">
-                        <button
-                          onClick={() => setTicketCount(Math.max(1, ticketCount - 1))}
-                          className="px-4 py-2 hover:bg-slate-100 text-[#0B132B] font-bold transition-colors text-base"
-                        >-</button>
-                        <div className="px-3 text-center font-bold text-sm text-[#0B132B] min-w-5">{ticketCount}</div>
-                        <button
-                          onClick={() => setTicketCount(Math.min(event.availableSeats, ticketCount + 1))}
-                          className="px-4 py-2 hover:bg-slate-100 text-[#0B132B] font-bold transition-colors text-base"
-                        >+</button>
+                    {isTraditional ? (
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center text-sm font-medium text-slate-700">
+                          <span>Your Ticket:</span>
+                          <span className="flex items-center font-bold text-[#0B132B]"><IndianRupee className="h-3.5 w-3.5 mr-0.5 text-[#B87A3D]" />{event.ticketPrice}</span>
+                        </div>
+                        
+                        <div className="bg-[#FAF9F6] p-3.5 rounded-xl border border-slate-100 space-y-3">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="text-xs font-bold text-[#0B132B] uppercase tracking-wider">Additional Guests</p>
+                              <p className="text-[11px] text-slate-500">₹100 per guest</p>
+                            </div>
+                            <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white shrink-0">
+                              <button
+                                onClick={() => setTicketCount(Math.max(1, ticketCount - 1))}
+                                className="px-3.5 py-1.5 hover:bg-slate-100 text-[#0B132B] font-bold transition-colors text-base"
+                                disabled={ticketCount <= 1}
+                              >-</button>
+                              <div className="px-3.5 text-center font-bold text-sm text-[#0B132B] min-w-5">{ticketCount - 1}</div>
+                              <button
+                                onClick={() => setTicketCount(Math.min(event.availableSeats, ticketCount + 1))}
+                                className="px-3.5 py-1.5 hover:bg-slate-100 text-[#0B132B] font-bold transition-colors text-base"
+                                disabled={ticketCount >= event.availableSeats}
+                              >+</button>
+                            </div>
+                          </div>
+                          
+                          {ticketCount > 1 && (
+                            <div className="flex justify-between text-xs text-slate-500 font-light pt-2 border-t border-slate-200/50">
+                              <span>Guests ({ticketCount - 1} × ₹100):</span>
+                              <span className="flex items-center"><IndianRupee className="h-3 w-3 mr-0.5" />{(ticketCount - 1) * 100}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                          <div>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Final Price</p>
+                            <p className="text-base font-bold text-[#0B132B] flex items-center"><IndianRupee className="h-4 w-4 text-[#B87A3D] mr-0.5" />{totalAmount}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Total Seats</p>
+                            <p className="text-sm font-semibold text-slate-700">{ticketCount} Seat{ticketCount > 1 ? 's' : ''}</p>
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Total</p>
-                        <p className="text-base font-bold text-[#0B132B] flex items-center justify-end"><IndianRupee className="h-4 w-4 text-[#B87A3D]" />{event.ticketPrice * ticketCount}</p>
+                    ) : (
+                      <div className="flex justify-between items-center bg-[#FAF9F6] p-3 rounded-xl border border-slate-100">
+                        <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white shrink-0">
+                          <button
+                            onClick={() => setTicketCount(Math.max(1, ticketCount - 1))}
+                            className="px-4 py-2 hover:bg-slate-100 text-[#0B132B] font-bold transition-colors text-base"
+                          >-</button>
+                          <div className="px-3 text-center font-bold text-sm text-[#0B132B] min-w-5">{ticketCount}</div>
+                          <button
+                            onClick={() => setTicketCount(Math.min(event.availableSeats, ticketCount + 1))}
+                            className="px-4 py-2 hover:bg-slate-100 text-[#0B132B] font-bold transition-colors text-base"
+                          >+</button>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Total</p>
+                          <p className="text-base font-bold text-[#0B132B] flex items-center justify-end"><IndianRupee className="h-4 w-4 text-[#B87A3D]" />{totalAmount}</p>
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     <button
                       onClick={handleBookClick}
@@ -407,6 +524,125 @@ export default function EventDetails() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 4. Razorpay Checkout Script */}
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
+
+      {/* 5. Luxury Ticket Modal Overlay */}
+      {bookingSuccess && bookedTicket && (
+        <div className="fixed inset-0 z-50 bg-[#0B132B]/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-3xl overflow-hidden max-w-2xl w-full shadow-2xl border border-slate-100 flex flex-col md:flex-row relative"
+          >
+            {/* Background design */}
+            <div className="absolute inset-0 bg-gradient-to-tr from-slate-50 to-white -z-10" />
+            
+            {/* Left Side: Main ticket content */}
+            <div className="p-8 flex-1 flex flex-col justify-between space-y-6">
+              <div>
+                <div className="flex justify-between items-start">
+                  <div className="bg-[#B87A3D]/10 text-[#B87A3D] text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                    Official Ticket
+                  </div>
+                  <div className="flex items-center gap-1 text-[#0B132B] font-bold font-serif text-lg italic">
+                    <Sparkles className="h-4.5 w-4.5 text-[#B87A3D]" />
+                    <span>Lumina</span>
+                  </div>
+                </div>
+                
+                <h2 className="text-2xl font-serif font-bold text-[#0B132B] mt-4 mb-2 italic leading-tight">
+                  {event.title}
+                </h2>
+                
+                <div className="grid grid-cols-2 gap-4 mt-6">
+                  <div>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Date</p>
+                    <p className="text-xs font-semibold text-slate-700">
+                      {new Date(event.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Venue</p>
+                    <p className="text-xs font-semibold text-slate-700 truncate">{event.location}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Attendee</p>
+                    <p className="text-xs font-semibold text-slate-700">{user?.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Seats Booked</p>
+                    <p className="text-xs font-semibold text-slate-700">{bookedTicket.ticketCount} Seat(s)</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="border-t border-slate-100 pt-4 flex justify-between items-center">
+                <div>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Amount Paid</p>
+                  <p className="text-lg font-bold text-[#0B132B]">₹{bookedTicket.totalAmount}</p>
+                </div>
+                <div className="bg-green-500/10 text-green-600 border border-green-500/20 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                  Payment Verified
+                </div>
+              </div>
+            </div>
+            
+            {/* Cut Line / Dotted divider (Vertical on desktop, horizontal on mobile) */}
+            <div className="relative flex md:flex-col items-center justify-center">
+              {/* Semi-circular cuts on top and bottom/sides */}
+              <div className="absolute -top-3 md:-top-3 md:-left-3 left-1/2 md:left-auto -translate-x-1/2 md:translate-x-0 w-6 h-6 bg-[#0B132B] rounded-full" />
+              <div className="absolute -bottom-3 md:-bottom-3 md:-left-3 left-1/2 md:left-auto -translate-x-1/2 md:translate-x-0 w-6 h-6 bg-[#0B132B] rounded-full" />
+              
+              {/* Dashed line */}
+              <div className="w-full md:w-px h-px md:h-full border-t-2 md:border-l-2 border-dashed border-slate-200" />
+              
+              {/* Scissors icon */}
+              <div className="absolute bg-white p-1 rounded-full border border-slate-100 text-slate-400 hover:text-[#B87A3D] transition-colors">
+                <Scissors className="h-4 w-4" />
+              </div>
+            </div>
+            
+            {/* Right Side: Rip-off Stub / Barcode */}
+            <div className="p-8 bg-slate-50 md:w-60 flex flex-col justify-between items-center text-center shrink-0">
+              <div className="space-y-2">
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Booking Code</p>
+                <p className="text-sm font-mono font-bold text-[#0B132B] tracking-wider">{bookedTicket.bookingId}</p>
+              </div>
+              
+              {/* CSS Barcode */}
+              <div className="my-6 bg-white p-4 rounded-xl border border-slate-100 flex flex-col items-center space-y-2">
+                <div className="flex h-14 items-slice justify-center gap-[2px] w-36">
+                  {[2,1,3,2,1,4,1,2,3,1,2,2,4,1,2,3,1,2].map((width, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-slate-800"
+                      style={{ width: `${width}px` }}
+                    />
+                  ))}
+                </div>
+                <span className="text-[8px] font-mono text-slate-400 tracking-[0.2em]">ADMIT {bookedTicket.ticketCount}</span>
+              </div>
+              
+              <div className="w-full space-y-2">
+                <button
+                  onClick={() => window.print()}
+                  className="w-full bg-[#0B132B] hover:bg-[#15234b] text-white py-2 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-colors shadow-sm"
+                >
+                  Print Ticket
+                </button>
+                <button
+                  onClick={() => setBookingSuccess(false)}
+                  className="w-full text-slate-400 hover:text-slate-600 font-bold text-[10px] uppercase tracking-widest"
+                >
+                  Close Ticket
+                </button>
+              </div>
+            </div>
+          </motion.div>
         </div>
       )}
     </div>

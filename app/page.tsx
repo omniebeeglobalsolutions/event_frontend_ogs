@@ -165,7 +165,7 @@ export default function LandingPage() {
 
             <div className="grid md:grid-cols-2 gap-6">
               {/* Event Management Card */}
-              <Link href="/home" className="group block">
+              <Link href="/" className="group block">
                 <motion.div 
                   whileHover={{ y: -3 }}
                   className="h-full bg-white rounded-2xl p-8 border border-stone-200 shadow-sm hover:shadow-xl hover:border-blue-300 transition-all duration-300 relative overflow-hidden"

@@ -21,7 +21,7 @@ export default function Login() {
       const { data } = await api.post('/auth/login', { emailOrUsername: email, password });
       toast.success('Welcome back!');
       login(data);
-      router.push('/home');
+      router.push('/');
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Login failed');
     } finally {

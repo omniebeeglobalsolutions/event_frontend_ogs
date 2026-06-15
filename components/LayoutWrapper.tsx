@@ -9,7 +9,7 @@ import CompanyFooter from './CompanyFooter';
 export default function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   
-  const isLuminaPath = pathname.startsWith('/home') || 
+  const isLuminaPath = pathname.startsWith('/') || 
                        pathname.startsWith('/events') || 
                        pathname.startsWith('/gallery') || 
                        pathname.startsWith('/bookings');
@@ -24,7 +24,7 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
       <main className="flex-grow">
         {children}
       </main>
-      {pathname === '/home' && <Footer />}
+      {pathname === '/' && <Footer />}
       {showCompanyFooter && <CompanyFooter />}
     </Providers>
   );
